@@ -101,12 +101,25 @@ go build -o anonfile.exe .
 | `upload_rate_per_min` | 上传频率（次/分钟/IP，0=不限） | 20 |
 | `download_rate_per_min` | 下载频率（次/分钟/IP，0=不限） | 60 |
 | `download_mode` | 下载模式：`direct`无广直连 / `ad`广告下载 / `countdown`倒计时下载 | countdown |
+| `login_rate_per_min` | 登录频率（次/分钟/IP，防暴力破解） | 5 |
 | `ad_code` | 广告模式下下载页顶部广告位（HTML，留空则退化为倒计时） | "" |
 | `wait_sec_min` | 倒计时模式最短等待秒数 | 5 |
 | `wait_sec_max` | 倒计时模式最长等待秒数（范围内随机） | 20 |
-| `admin_password` | 管理员密码 | admin123 |
+| `admin_password` | 管理员密码（PBKDF2 哈希存储，默认 admin123） | admin123 |
 
 > 存储元数据保存在 `data/meta.json`，与文件一起包含在备份中。
+
+---
+
+## 安全
+
+- **上传文件防 XSS**：可能携带脚本的类型（`html/svg/xml/js/css` 等）一律**强制附件下载**（`Content-Disposition: attachment` + `application/octet-stream`），禁止内联执行；所有响应带 `X-Content-Type-Options: nosniff` 与 CSP。
+- **密码哈希**：管理员密码用 PBKDF2-HMAC-SHA256（10 万次迭代、随机盐）哈希存储，不再明文；旧明文配置启动时自动迁移。
+- **登录限流**：按 IP 每分钟限制登录尝试（`login_rate_per_min`），防暴力破解。
+- **能力式删除**：匿名删除凭每文件的删除口令，不依赖登录。
+- **一次性下载令牌**：广告/倒计时模式签发，单次有效、3 分钟过期，防直链绕过。
+- **备份恢复**：zip 解包已做路径穿越防护（拒绝 `..`/绝对路径）。
+- 建议公网部署时置于 Nginx/Caddy 反向代理后启用 **HTTPS**。
 
 ---
 

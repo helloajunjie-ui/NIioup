@@ -26,6 +26,7 @@ type Config struct {
 	PublicList        bool     `json:"public_list"`         // 首页是否展示最近分享列表
 	UploadRatePerMin  int    `json:"upload_rate_per_min"`   // 上传频率：每 IP 每分钟次数，0=不限
 	DownloadRatePerMin int   `json:"download_rate_per_min"` // 下载频率：每 IP 每分钟次数，0=不限
+	LoginRatePerMin   int    `json:"login_rate_per_min"`    // 登录频率：每 IP 每分钟尝试次数，防暴力破解
 	DownloadMode      string `json:"download_mode"`         // 下载模式：direct=无广直连 / ad=广告下载 / countdown=倒计时下载
 	AdCode            string `json:"ad_code"`               // 广告模式下下载门槛页顶部广告位（HTML）
 	WaitSecMin        int    `json:"wait_sec_min"`          // 倒计时模式下载等待最短秒数
@@ -52,6 +53,7 @@ func defaultConfig() Config {
 		PublicList:         true,
 		UploadRatePerMin:   20,
 		DownloadRatePerMin: 60,
+		LoginRatePerMin:    5,
 		DownloadMode:       "countdown",
 		AdCode:             "",
 		WaitSecMin:         5,
@@ -89,6 +91,15 @@ func LoadConfig() error {
 		return err
 	}
 	cfg.AllowedExtensions = normalizeExts(cfg.AllowedExtensions)
+	// 密码迁移：旧版明文密码自动哈希化（避免明文存盘）
+	if !isPasswordHashed(cfg.AdminPassword) {
+		if h, err := hashPassword(cfg.AdminPassword); err == nil {
+			cfg.AdminPassword = h
+		}
+		if !missing {
+			SaveConfig()
+		}
+	}
 	if missing {
 		return SaveConfig() // 生成默认 config.json
 	}

@@ -94,9 +94,15 @@ func staticHandler() http.Handler {
 	})
 }
 
-// logRequests 简单访问日志
+// logRequests 访问日志 + 全局安全响应头
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 全局安全头：禁止内联脚本/外域资源，缓解上传文件触发的存储型 XSS
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; frame-ancestors 'self'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Referrer-Policy", "same-origin")
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)

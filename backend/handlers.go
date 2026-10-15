@@ -204,8 +204,15 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	if dl {
 		disposition = "attachment"
 	}
+	ct := f.ContentType
+	// 可能携带脚本的类型（html/svg/xml/js/css 等）一律强制附件下载，禁止内联执行，防存储型 XSS
+	if isUnsafeInline(f.Ext) {
+		disposition = "attachment"
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": f.Name}))
-	w.Header().Set("Content-Type", f.ContentType)
+	w.Header().Set("Content-Type", ct)
 	http.ServeFile(w, r, path)
 }
 

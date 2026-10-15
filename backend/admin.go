@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/subtle"
 	"net/http"
 	"os"
 	"strconv"
@@ -13,8 +12,9 @@ import (
 // ---- 管理员会话（进程内，重启后需重新登录）----
 
 var (
-	sessionMu sync.Mutex
-	sessions  = map[string]time.Time{} // token -> 过期时间
+	sessionMu    sync.Mutex
+	sessions     = map[string]time.Time{} // token -> 过期时间
+	loginLimiter = newWindowLimiter(60)   // 登录按 IP 限流，防暴力破解
 )
 
 const sessionTTL = 24 * time.Hour
@@ -65,6 +65,11 @@ func requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 
 // handleLogin POST /api/admin/login  {password}
 func handleLogin(w http.ResponseWriter, r *http.Request) {
+	// 登录按 IP 限次（防暴力破解）
+	if !loginLimiter.allow(clientIP(r), cfg.LoginRatePerMin) {
+		writeErr(w, http.StatusTooManyRequests, "尝试过于频繁，请稍后再试")
+		return
+	}
 	var req struct {
 		Password string `json:"password"`
 	}
@@ -72,7 +77,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "请求格式错误")
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(req.Password), []byte(cfg.AdminPassword)) != 1 {
+	if !checkPassword(req.Password, cfg.AdminPassword) {
 		writeErr(w, http.StatusUnauthorized, "密码错误")
 		return
 	}
@@ -175,6 +180,7 @@ func handleAdminGetConfig(w http.ResponseWriter, r *http.Request) {
 		"public_list":         c.PublicList,
 		"upload_rate_per_min": c.UploadRatePerMin,
 		"download_rate_per_min": c.DownloadRatePerMin,
+		"login_rate_per_min":  c.LoginRatePerMin,
 		"download_mode":       c.DownloadMode,
 		"ad_code":             c.AdCode,
 		"wait_sec_min":        c.WaitSecMin,
@@ -199,6 +205,7 @@ func handleAdminPutConfig(w http.ResponseWriter, r *http.Request) {
 		PublicList         *bool    `json:"public_list"`
 		UploadRatePerMin   *int    `json:"upload_rate_per_min"`
 		DownloadRatePerMin *int    `json:"download_rate_per_min"`
+		LoginRatePerMin    *int    `json:"login_rate_per_min"`
 		DownloadMode       *string `json:"download_mode"`
 		AdCode             *string `json:"ad_code"`
 		WaitSecMin         *int    `json:"wait_sec_min"`
@@ -265,7 +272,16 @@ func handleAdminPutConfig(w http.ResponseWriter, r *http.Request) {
 		cfg.PublicList = *req.PublicList
 	}
 	if req.AdminPassword != nil && *req.AdminPassword != "" {
-		cfg.AdminPassword = *req.AdminPassword
+		h, err := hashPassword(*req.AdminPassword)
+		if err != nil {
+			cfgMu.Unlock()
+			writeErr(w, http.StatusBadRequest, "密码无效")
+			return
+		}
+		cfg.AdminPassword = h
+	}
+	if req.LoginRatePerMin != nil && *req.LoginRatePerMin >= 0 {
+		cfg.LoginRatePerMin = *req.LoginRatePerMin
 	}
 	cfg.AllowedExtensions = normalizeExts(req.AllowedExtensions)
 	cfgMu.Unlock()
