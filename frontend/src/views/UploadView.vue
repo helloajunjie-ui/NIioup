@@ -200,6 +200,18 @@ const shownFiles = computed(() => files.value)
       </template>
     </section>
 
+    <!-- 删除口令（放在列表上方，方便随时删除） -->
+    <section class="card">
+      <h3>删除文件（凭口令匿名删除）</h3>
+      <p class="dim" style="margin-bottom:10px">把上传成功时显示的删除口令粘贴到这里，即可匿名删除对应文件。</p>
+      <div class="linkbox">
+        <input class="input mono" v-model="delToken" placeholder="粘贴删除口令…" @keyup.enter="removeFile" />
+        <button class="btn danger" :disabled="deleting" @click="removeFile">{{ deleting ? '删除中…' : '删除' }}</button>
+      </div>
+      <div class="ok" v-if="delMsg === '删除成功'">{{ delMsg }}</div>
+      <div class="err" v-else-if="delMsg">{{ delMsg }}</div>
+    </section>
+
     <!-- 分享列表 -->
     <section v-if="info.public_list">
       <div class="tabs">
@@ -227,18 +239,6 @@ const shownFiles = computed(() => files.value)
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- 删除口令 -->
-    <section class="card">
-      <h3>删除文件（凭口令匿名删除）</h3>
-      <p class="dim" style="margin-bottom:10px">把上传成功时显示的删除口令粘贴到这里，即可匿名删除对应文件。</p>
-      <div class="linkbox">
-        <input class="input mono" v-model="delToken" placeholder="粘贴删除口令…" @keyup.enter="removeFile" />
-        <button class="btn danger" :disabled="deleting" @click="removeFile">{{ deleting ? '删除中…' : '删除' }}</button>
-      </div>
-      <div class="ok" v-if="delMsg === '删除成功'">{{ delMsg }}</div>
-      <div class="err" v-else-if="delMsg">{{ delMsg }}</div>
     </section>
   </div>
 </template>
