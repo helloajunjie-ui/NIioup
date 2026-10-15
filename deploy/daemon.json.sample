@@ -1,0 +1,21 @@
+# Docker 守护进程 registry-mirror 配置（加速拉取基础镜像 node/golang/alpine）
+#
+# 用法（Linux 服务器）：
+#   sudo mkdir -p /etc/docker
+#   sudo cp deploy/daemon.json.sample /etc/docker/daemon.json
+#   sudo systemctl restart docker
+#
+# 注意：
+#   - 公共镜像加速源稳定性不一，优先用阿里云个人专属加速地址
+#     （登录阿里云容器镜像服务控制台，在"镜像加速器"页获取你的专属地址，格式
+#      https://<你的ID>.mirror.aliyuncs.com），替换下方第一项。
+#   - Docker Desktop：设置 → Docker Engine，合并进 daemon.json 后 Apply & Restart。
+
+{
+  "registry-mirrors": [
+    "https://<你的ID>.mirror.aliyuncs.com",
+    "https://docker.m.daocloud.io",
+    "https://dockerproxy.net",
+    "https://docker.1panel.live"
+  ]
+}

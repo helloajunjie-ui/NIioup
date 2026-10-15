@@ -5,6 +5,7 @@
 #   anonfile_data   文件 + meta.json
 #   anonfile_config config.json（后台改配置会持久化到这里）
 # 如需改端口，改下面 "8080:8080" 左边为主机端口即可。
+# 国内拉基础镜像慢：先按 daemon.json.sample 配置 Docker registry-mirror。
 
 services:
   anonfile:

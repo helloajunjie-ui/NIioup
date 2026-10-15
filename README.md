@@ -138,6 +138,8 @@ docker compose up -d --build
 - 改端口：编辑 `docker-compose.yml` 里 `"8080:8080"` 左侧
 - 首次启动自动生成默认配置；后台改配置会持久化到配置卷
 
+**国内节点**：Dockerfile 已内置国内源（npm 走 npmmirror、Go 走 goproxy.cn、apk 走阿里云镜像）。基础镜像（node/golang/alpine）来自 Docker Hub，国内拉取慢时按 `deploy/daemon.json.sample` 配置 Docker 守护进程 `registry-mirrors`（优先用阿里云专属加速地址）后重启 Docker。
+
 ### 2. systemd 服务（裸机 Linux）
 
 ```bash
