@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -188,25 +189,50 @@ func handleInfoFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, publicMeta(f))
 }
 
-// handlePublicList GET /api/files?limit=20  最近分享列表
+// handlePublicList GET /api/files?limit=&q=&category=  最近分享列表（可搜索/按分类过滤）
 func handlePublicList(w http.ResponseWriter, r *http.Request) {
 	if !cfg.PublicList {
-		writeJSON(w, http.StatusOK, map[string]any{"files": []any{}, "count": 0})
+		writeJSON(w, http.StatusOK, map[string]any{"files": []any{}, "count": 0, "total": 0, "categories": []any{}})
 		return
 	}
-	limit := 20
+	q := strings.ToLower(r.URL.Query().Get("q"))
+	cat := r.URL.Query().Get("category")
+	limit := 200
 	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
 			limit = n
 		}
 	}
+
 	all := store.All()
-	if len(all) > limit {
-		all = all[:limit]
-	}
-	out := make([]map[string]any, 0, len(all))
+	// 汇总可用分类（按文件数降序）
+	catCount := map[string]int{}
 	for _, f := range all {
-		out = append(out, publicMeta(f))
+		catCount[f.Category]++
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"files": out, "count": len(out)})
+	type kv struct{ k string; n int }
+	var cats []kv
+	for k, n := range catCount {
+		cats = append(cats, kv{k, n})
+	}
+	sort.Slice(cats, func(i, j int) bool { return cats[i].n > cats[j].n })
+	categories := make([]string, 0, len(cats))
+	for _, c := range cats {
+		categories = append(categories, c.k)
+	}
+
+	out := []map[string]any{}
+	for _, f := range all {
+		if q != "" && !strings.Contains(strings.ToLower(f.Name), q) {
+			continue
+		}
+		if cat != "" && cat != "所有" && f.Category != cat {
+			continue
+		}
+		out = append(out, publicMeta(f))
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"files": out, "count": len(out), "total": len(all), "categories": categories})
 }

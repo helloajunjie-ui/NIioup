@@ -100,7 +100,13 @@ export const api = {
   info: () => req('/api/info'),
   upload,
   restore,
-  publicFiles: (limit = 20) => req('/api/files?limit=' + limit),
+  publicFiles: (limit = 200, q = '', category = '') => {
+    const p = new URLSearchParams()
+    p.set('limit', limit)
+    if (q) p.set('q', q)
+    if (category && category !== '所有') p.set('category', category)
+    return req('/api/files?' + p.toString())
+  },
   selfDelete: (token) =>
     req('/api/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }),
   login: (password) =>
@@ -128,6 +134,22 @@ export function formatTime(unix) {
   const d = new Date(unix * 1000)
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// 相对时间：刚刚 / N分钟前 / N小时前 / N天前 / N月前 / N年前
+export function timeAgo(unix) {
+  if (!unix) return '-'
+  const diff = Math.floor(Date.now() / 1000) - unix
+  if (diff < 60) return '刚刚'
+  const m = Math.floor(diff / 60)
+  if (m < 60) return m + ' 分钟前'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + ' 小时前'
+  const d = Math.floor(h / 24)
+  if (d < 30) return d + ' 天前'
+  const mo = Math.floor(d / 30)
+  if (mo < 12) return mo + ' 个月前'
+  return Math.floor(mo / 12) + ' 年前'
 }
 
 export function copyText(text) {
