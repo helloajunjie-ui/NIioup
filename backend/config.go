@@ -26,9 +26,10 @@ type Config struct {
 	PublicList        bool     `json:"public_list"`         // 首页是否展示最近分享列表
 	UploadRatePerMin  int    `json:"upload_rate_per_min"`   // 上传频率：每 IP 每分钟次数，0=不限
 	DownloadRatePerMin int   `json:"download_rate_per_min"` // 下载频率：每 IP 每分钟次数，0=不限
-	AdCode            string `json:"ad_code"`               // 下载门槛页顶部广告位（HTML），留空则显示倒计时
-	WaitSecMin        int    `json:"wait_sec_min"`          // 下载等待最短秒数
-	WaitSecMax        int    `json:"wait_sec_max"`          // 下载等待最长秒数（范围内随机）
+	DownloadMode      string `json:"download_mode"`         // 下载模式：direct=无广直连 / ad=广告下载 / countdown=倒计时下载
+	AdCode            string `json:"ad_code"`               // 广告模式下下载门槛页顶部广告位（HTML）
+	WaitSecMin        int    `json:"wait_sec_min"`          // 倒计时模式下载等待最短秒数
+	WaitSecMax        int    `json:"wait_sec_max"`          // 倒计时模式下载等待最长秒数（范围内随机）
 	AdminPassword     string `json:"admin_password"`        // 管理员密码
 }
 
@@ -51,6 +52,7 @@ func defaultConfig() Config {
 		PublicList:         true,
 		UploadRatePerMin:   20,
 		DownloadRatePerMin: 60,
+		DownloadMode:       "countdown",
 		AdCode:             "",
 		WaitSecMin:         5,
 		WaitSecMax:         20,

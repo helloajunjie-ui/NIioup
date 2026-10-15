@@ -175,6 +175,7 @@ func handleAdminGetConfig(w http.ResponseWriter, r *http.Request) {
 		"public_list":         c.PublicList,
 		"upload_rate_per_min": c.UploadRatePerMin,
 		"download_rate_per_min": c.DownloadRatePerMin,
+		"download_mode":       c.DownloadMode,
 		"ad_code":             c.AdCode,
 		"wait_sec_min":        c.WaitSecMin,
 		"wait_sec_max":        c.WaitSecMax,
@@ -198,6 +199,7 @@ func handleAdminPutConfig(w http.ResponseWriter, r *http.Request) {
 		PublicList         *bool    `json:"public_list"`
 		UploadRatePerMin   *int    `json:"upload_rate_per_min"`
 		DownloadRatePerMin *int    `json:"download_rate_per_min"`
+		DownloadMode       *string `json:"download_mode"`
 		AdCode             *string `json:"ad_code"`
 		WaitSecMin         *int    `json:"wait_sec_min"`
 		WaitSecMax         *int    `json:"wait_sec_max"`
@@ -243,6 +245,12 @@ func handleAdminPutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.DownloadRatePerMin != nil && *req.DownloadRatePerMin >= 0 {
 		cfg.DownloadRatePerMin = *req.DownloadRatePerMin
+	}
+	if req.DownloadMode != nil {
+		switch *req.DownloadMode {
+		case "direct", "ad", "countdown":
+			cfg.DownloadMode = *req.DownloadMode
+		}
 	}
 	if req.AdCode != nil {
 		cfg.AdCode = *req.AdCode

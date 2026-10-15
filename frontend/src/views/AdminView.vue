@@ -71,6 +71,7 @@ async function saveConfig() {
     public_list: !!cfg.value.public_list,
     upload_rate_per_min: Number(cfg.value.upload_rate_per_min || 0),
     download_rate_per_min: Number(cfg.value.download_rate_per_min || 0),
+    download_mode: cfg.value.download_mode || 'countdown',
     ad_code: cfg.value.ad_code || '',
     wait_sec_min: Number(cfg.value.wait_sec_min || 0),
     wait_sec_max: Number(cfg.value.wait_sec_max || 0),
@@ -221,9 +222,16 @@ onMounted(() => { if (authed.value) { loadFiles(); loadConfig() } })
           <div class="field"><label>下载等待最长秒数</label>
             <input class="input" type="number" v-model="cfg.wait_sec_max" /></div>
         </div>
-        <div class="field"><label>下载门槛页广告位（HTML，留空=显示倒计时）</label>
+        <div class="field"><label>下载模式</label>
+          <select class="input" v-model="cfg.download_mode">
+            <option value="direct">无广直连（点下载直接下，无广告无等待）</option>
+            <option value="ad">广告下载（顶部展示广告位，可直接下载）</option>
+            <option value="countdown">倒计时下载（随机 5–20 秒后可用）</option>
+          </select>
+          <div class="hint">内部使用选「无广直连」；对外引流可选「广告下载」或「倒计时下载」。</div></div>
+        <div class="field" v-if="cfg.download_mode === 'ad'"><label>广告位代码（HTML，仅广告模式生效）</label>
           <textarea class="input" rows="3" v-model="cfg.ad_code" placeholder="粘贴你自己的广告代码，如 广告联盟 iframe/图片 链接"></textarea>
-          <div class="hint">填写后，下载门槛页顶部会展示这段广告；留空则显示 5–20 秒随机倒计时。</div></div>
+          <div class="hint">仅「广告下载」模式会展示；留空则自动退化为倒计时下载。</div></div>
         <div class="field"><label>自动删除（超过 N 天删除，0=永久保留）</label>
           <input class="input" type="number" v-model="cfg.auto_delete_days" /></div>
         <div class="field check" style="margin-bottom:8px">

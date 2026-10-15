@@ -39,6 +39,7 @@ func handleInfo(w http.ResponseWriter, r *http.Request) {
 		"max_file_size_mb":   cfg.MaxFileSizeMB,
 		"max_files_total":    cfg.MaxFilesTotal,
 		"public_list":        cfg.PublicList,
+		"download_mode":      cfg.DownloadMode,
 		"ad_code":            cfg.AdCode,
 		"wait_sec_min":       cfg.WaitSecMin,
 		"wait_sec_max":       cfg.WaitSecMax,
@@ -174,10 +175,17 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ?dl=1 强制附件下载，必须携带由下载门槛页签发的一次性令牌，防止直链绕过
+	// ?dl=1 强制附件下载：
+	//   direct 模式（无广直连）→ 不校验令牌，仅限流；
+	//   ad / countdown 模式 → 必须携带门槛页签发的一次性令牌，防止绕过门槛
 	dl := r.URL.Query().Get("dl") == "1"
 	if dl {
-		if !consumeDownloadToken(r.URL.Query().Get("t"), id) {
+		if cfg.DownloadMode == "direct" {
+			if !downloadLimiter.allow(clientIP(r), cfg.DownloadRatePerMin) {
+				writeErr(w, http.StatusTooManyRequests, "下载太频繁，请稍后再试")
+				return
+			}
+		} else if !consumeDownloadToken(r.URL.Query().Get("t"), id) {
 			writeErr(w, http.StatusForbidden, "下载链接已失效，请从下载页重新获取")
 			return
 		}

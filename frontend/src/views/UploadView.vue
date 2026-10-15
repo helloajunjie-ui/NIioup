@@ -100,8 +100,12 @@ async function copy(text, key) {
   try { await copyText(text); copied.value = key; setTimeout(() => (copied.value = ''), 1500) } catch (_) {}
 }
 
-// 打开下载门槛窗口：顶部广告位（无广告则倒计时），结束后才签发下载令牌
+// 打开下载：direct 模式直接下载链接；ad/countdown 模式弹出门槛窗口
 function openGate(id) {
+  if (info.value.download_mode === 'direct') {
+    window.open('/f/' + id + '?dl=1', '_blank', 'noopener')
+    return
+  }
   window.open('/dl/' + id, '_blank', 'width=560,height=660,popup=yes')
 }
 

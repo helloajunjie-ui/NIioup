@@ -9,10 +9,16 @@
       <div v-if="err && !file" class="err center">{{ err }}</div>
 
       <template v-else>
-        <!-- 顶部：站长配置的广告位 -->
-        <div v-if="info.ad_code" class="adslot" v-html="info.ad_code"></div>
+        <!-- direct 无广直连：不等待、无广告，直接下载 -->
+        <div v-if="mode === 'direct'" class="directbox">
+          <div class="dl-big">直接下载</div>
+          <div class="lbl">该站点已开启无广告直连下载</div>
+        </div>
 
-        <!-- 无广告位：大倒计时 -->
+        <!-- ad 广告模式：顶部展示广告位 -->
+        <div v-else-if="mode === 'ad' && info.ad_code" class="adslot" v-html="info.ad_code"></div>
+
+        <!-- 倒计时（无广告时展示大倒计时） -->
         <div v-else class="count">
           <div class="num">{{ remain }}</div>
           <div class="lbl">下载将在 {{ remain }} 秒后可用</div>
@@ -27,12 +33,12 @@
           </div>
         </div>
 
-        <div class="progress"><div :style="{ width: pct + '%' }"></div></div>
+        <div class="progress" v-if="mode === 'countdown'"><div :style="{ width: pct + '%' }"></div></div>
 
         <button class="btn primary dl" :disabled="!ready" @click="download">
           {{ downloading ? '获取中…' : ready ? '开始下载' : '请等待 ' + remain + ' 秒' }}
         </button>
-        <div class="note">提示：等待倒计时结束后点击「开始下载」即可获取文件，可随时关闭本窗口。</div>
+        <div class="note" v-if="mode !== 'direct'">提示：等待倒计时结束后点击「开始下载」即可获取文件，可随时关闭本窗口。</div>
         <div v-if="err" class="err center">{{ err }}</div>
       </template>
     </div>
@@ -47,7 +53,7 @@ import { api, formatSize } from '../api.js'
 const route = useRoute()
 const id = route.params.id
 
-const info = ref({ wait_sec_min: 5, wait_sec_max: 20, ad_code: '', site_title: '' })
+const info = ref({ wait_sec_min: 5, wait_sec_max: 20, ad_code: '', site_title: '', download_mode: 'countdown' })
 const file = ref(null)
 const err = ref('')
 const remain = ref(0)
@@ -55,7 +61,9 @@ const total = ref(0)
 const downloading = ref(false)
 let timer = null
 
-const ready = computed(() => remain.value <= 0)
+const mode = computed(() => (info.value.download_mode === 'ad' && !info.value.ad_code ? 'countdown' : info.value.download_mode))
+// direct / ad：立即可下载；countdown：倒计时结束才可用
+const ready = computed(() => mode.value !== 'countdown' || remain.value <= 0)
 const pct = computed(() => (total.value ? Math.round(((total.value - remain.value) / total.value) * 100) : 0))
 
 onMounted(async () => {
@@ -81,6 +89,10 @@ async function download() {
   downloading.value = true
   err.value = ''
   try {
+    if (mode.value === 'direct') {
+      window.location.href = '/f/' + id + '?dl=1'
+      return
+    }
     const res = await api.dlStart(id)
     window.location.href = res.url
   } catch (e) {
@@ -110,6 +122,9 @@ function closeWin() {
 .count { padding: 10px 0 6px; }
 .count .num { font-size: 56px; font-weight: 700; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .count .lbl { color: var(--muted); font-size: 13px; }
+.directbox { padding: 18px 0 6px; }
+.directbox .dl-big { font-size: 22px; font-weight: 700; color: var(--ok); }
+.directbox .lbl { color: var(--muted); font-size: 13px; margin-top: 4px; }
 .frow { display: flex; align-items: center; gap: 12px; text-align: left; margin: 20px 0 6px; }
 .tile {
   width: 48px; height: 48px; border-radius: 10px; flex: none;
