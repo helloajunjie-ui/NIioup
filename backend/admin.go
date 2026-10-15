@@ -163,17 +163,22 @@ func handleAdminGetConfig(w http.ResponseWriter, r *http.Request) {
 	c := cfg
 	cfgMu.RUnlock()
 	resp := map[string]any{
-		"site_title":         c.SiteTitle,
-		"port":               c.Port,
-		"storage_dir":        c.StorageDir,
-		"frontend_dir":       c.FrontendDir,
-		"max_file_size_mb":   c.MaxFileSizeMB,
-		"allowed_extensions": c.AllowedExtensions,
-		"max_files_total":    c.MaxFilesTotal,
-		"upload_enabled":     c.UploadEnabled,
-		"auto_delete_days":   c.AutoDeleteDays,
-		"public_list":        c.PublicList,
-		"has_password":       c.AdminPassword != "",
+		"site_title":          c.SiteTitle,
+		"port":                c.Port,
+		"storage_dir":         c.StorageDir,
+		"frontend_dir":        c.FrontendDir,
+		"max_file_size_mb":    c.MaxFileSizeMB,
+		"allowed_extensions":  c.AllowedExtensions,
+		"max_files_total":     c.MaxFilesTotal,
+		"upload_enabled":      c.UploadEnabled,
+		"auto_delete_days":    c.AutoDeleteDays,
+		"public_list":         c.PublicList,
+		"upload_rate_per_min": c.UploadRatePerMin,
+		"download_rate_per_min": c.DownloadRatePerMin,
+		"ad_code":             c.AdCode,
+		"wait_sec_min":        c.WaitSecMin,
+		"wait_sec_max":        c.WaitSecMax,
+		"has_password":        c.AdminPassword != "",
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -181,17 +186,22 @@ func handleAdminGetConfig(w http.ResponseWriter, r *http.Request) {
 // handleAdminPutConfig PUT /api/admin/config  更新配置（密码留空则不修改）
 func handleAdminPutConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		SiteTitle         *string  `json:"site_title"`
-		Port              *int     `json:"port"`
-		StorageDir        *string  `json:"storage_dir"`
-		FrontendDir       *string  `json:"frontend_dir"`
-		MaxFileSizeMB     *int64   `json:"max_file_size_mb"`
-		AllowedExtensions []string `json:"allowed_extensions"`
-		MaxFilesTotal     *int     `json:"max_files_total"`
-		UploadEnabled     *bool    `json:"upload_enabled"`
-		AutoDeleteDays    *int     `json:"auto_delete_days"`
-		PublicList        *bool    `json:"public_list"`
-		AdminPassword     *string  `json:"admin_password"`
+		SiteTitle          *string  `json:"site_title"`
+		Port               *int     `json:"port"`
+		StorageDir         *string  `json:"storage_dir"`
+		FrontendDir        *string  `json:"frontend_dir"`
+		MaxFileSizeMB      *int64   `json:"max_file_size_mb"`
+		AllowedExtensions  []string `json:"allowed_extensions"`
+		MaxFilesTotal      *int     `json:"max_files_total"`
+		UploadEnabled      *bool    `json:"upload_enabled"`
+		AutoDeleteDays     *int     `json:"auto_delete_days"`
+		PublicList         *bool    `json:"public_list"`
+		UploadRatePerMin   *int    `json:"upload_rate_per_min"`
+		DownloadRatePerMin *int    `json:"download_rate_per_min"`
+		AdCode             *string `json:"ad_code"`
+		WaitSecMin         *int    `json:"wait_sec_min"`
+		WaitSecMax         *int    `json:"wait_sec_max"`
+		AdminPassword      *string `json:"admin_password"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "请求格式错误")
@@ -227,6 +237,21 @@ func handleAdminPutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AutoDeleteDays != nil && *req.AutoDeleteDays >= 0 {
 		cfg.AutoDeleteDays = *req.AutoDeleteDays
+	}
+	if req.UploadRatePerMin != nil && *req.UploadRatePerMin >= 0 {
+		cfg.UploadRatePerMin = *req.UploadRatePerMin
+	}
+	if req.DownloadRatePerMin != nil && *req.DownloadRatePerMin >= 0 {
+		cfg.DownloadRatePerMin = *req.DownloadRatePerMin
+	}
+	if req.AdCode != nil {
+		cfg.AdCode = *req.AdCode
+	}
+	if req.WaitSecMin != nil && *req.WaitSecMin >= 0 {
+		cfg.WaitSecMin = *req.WaitSecMin
+	}
+	if req.WaitSecMax != nil && *req.WaitSecMax >= cfg.WaitSecMin {
+		cfg.WaitSecMax = *req.WaitSecMax
 	}
 	if req.PublicList != nil {
 		cfg.PublicList = *req.PublicList

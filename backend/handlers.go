@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"mime"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,12 +33,15 @@ func publicMeta(f FileMeta) map[string]any {
 // handleInfo GET /api/info 站点公开信息（前端渲染用）
 func handleInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"site_title":        cfg.SiteTitle,
-		"upload_enabled":    cfg.UploadEnabled,
+		"site_title":         cfg.SiteTitle,
+		"upload_enabled":     cfg.UploadEnabled,
 		"allowed_extensions": cfg.AllowedExtensions,
-		"max_file_size_mb":  cfg.MaxFileSizeMB,
-		"max_files_total":   cfg.MaxFilesTotal,
-		"public_list":       cfg.PublicList,
+		"max_file_size_mb":   cfg.MaxFileSizeMB,
+		"max_files_total":    cfg.MaxFilesTotal,
+		"public_list":        cfg.PublicList,
+		"ad_code":            cfg.AdCode,
+		"wait_sec_min":       cfg.WaitSecMin,
+		"wait_sec_max":       cfg.WaitSecMax,
 	})
 }
 
@@ -44,6 +49,10 @@ func handleInfo(w http.ResponseWriter, r *http.Request) {
 func handleUpload(w http.ResponseWriter, r *http.Request) {
 	if !cfg.UploadEnabled {
 		writeErr(w, http.StatusForbidden, "上传已关闭")
+		return
+	}
+	if !uploadLimiter.allow(clientIP(r), cfg.UploadRatePerMin) {
+		writeErr(w, http.StatusTooManyRequests, "上传太频繁，请稍后再试")
 		return
 	}
 
@@ -165,17 +174,80 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ?dl=1 强制附件下载，必须携带由下载门槛页签发的一次性令牌，防止直链绕过
+	dl := r.URL.Query().Get("dl") == "1"
+	if dl {
+		if !consumeDownloadToken(r.URL.Query().Get("t"), id) {
+			writeErr(w, http.StatusForbidden, "下载链接已失效，请从下载页重新获取")
+			return
+		}
+	} else {
+		// 内联预览：仅限流，不校验令牌
+		if !downloadLimiter.allow(clientIP(r), cfg.DownloadRatePerMin) {
+			writeErr(w, http.StatusTooManyRequests, "下载太频繁，请稍后再试")
+			return
+		}
+	}
+
 	// 下载计数
 	go store.incDownloads(id)
 
-	// ?dl=1 强制附件下载；默认内联预览
 	disposition := "inline"
-	if r.URL.Query().Get("dl") == "1" {
+	if dl {
 		disposition = "attachment"
 	}
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": f.Name}))
 	w.Header().Set("Content-Type", f.ContentType)
 	http.ServeFile(w, r, path)
+}
+
+// ---- 一次性下载令牌（下载门槛页签发，单次有效，防直链绕过） ----
+
+type dlToken struct {
+	id  string
+	exp time.Time
+}
+
+var dlTokens sync.Map // token -> dlToken
+
+func issueDownloadToken(id string) string {
+	tok := randomID(48)
+	dlTokens.Store(tok, dlToken{id: id, exp: time.Now().Add(3 * time.Minute)})
+	return tok
+}
+
+func consumeDownloadToken(tok, id string) bool {
+	if tok == "" {
+		return false
+	}
+	v, ok := dlTokens.LoadAndDelete(tok)
+	if !ok {
+		return false
+	}
+	t := v.(dlToken)
+	return t.id == id && time.Now().Before(t.exp)
+}
+
+// handleGateStart POST /api/dl/start {id}  下载门槛页倒计时结束后调用：签发一次性下载令牌
+func handleGateStart(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil || req.ID == "" {
+		writeErr(w, http.StatusBadRequest, "缺少文件 ID")
+		return
+	}
+	if !downloadLimiter.allow(clientIP(r), cfg.DownloadRatePerMin) {
+		writeErr(w, http.StatusTooManyRequests, "下载太频繁，请稍后再试")
+		return
+	}
+	f, ok := store.Get(req.ID)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "文件不存在")
+		return
+	}
+	tok := issueDownloadToken(req.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "token": tok, "url": "/f/" + f.ID + "?dl=1&t=" + tok})
 }
 
 // handleInfoFile GET /f/{id}/info  单文件公开信息
@@ -189,7 +261,9 @@ func handleInfoFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, publicMeta(f))
 }
 
-// handlePublicList GET /api/files?limit=&q=&category=  最近分享列表（可搜索/按分类过滤）
+// handlePublicList GET /api/files?limit=&q=&category=&random=1  分享列表
+// 默认（无搜索、无分类）随机展示 limit 条，避免数据过多时全量加载浪费资源；
+// 搜索/分类仍精确过滤；total 与 categories 始终按全量统计。
 func handlePublicList(w http.ResponseWriter, r *http.Request) {
 	if !cfg.PublicList {
 		writeJSON(w, http.StatusOK, map[string]any{"files": []any{}, "count": 0, "total": 0, "categories": []any{}})
@@ -197,7 +271,8 @@ func handlePublicList(w http.ResponseWriter, r *http.Request) {
 	}
 	q := strings.ToLower(r.URL.Query().Get("q"))
 	cat := r.URL.Query().Get("category")
-	limit := 200
+	random := r.URL.Query().Get("random") == "1"
+	limit := 50
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
 			limit = n
@@ -205,6 +280,7 @@ func handlePublicList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	all := store.All()
+
 	// 汇总可用分类（按文件数降序）
 	catCount := map[string]int{}
 	for _, f := range all {
@@ -221,7 +297,8 @@ func handlePublicList(w http.ResponseWriter, r *http.Request) {
 		categories = append(categories, c.k)
 	}
 
-	out := []map[string]any{}
+	// 先过滤
+	var matched []FileMeta
 	for _, f := range all {
 		if q != "" && !strings.Contains(strings.ToLower(f.Name), q) {
 			continue
@@ -229,10 +306,20 @@ func handlePublicList(w http.ResponseWriter, r *http.Request) {
 		if cat != "" && cat != "所有" && f.Category != cat {
 			continue
 		}
+		matched = append(matched, f)
+	}
+
+	// 默认视图：随机抽样
+	if random && q == "" && (cat == "" || cat == "所有") {
+		rand.Shuffle(len(matched), func(i, j int) { matched[i], matched[j] = matched[j], matched[i] })
+	}
+	if limit > 0 && len(matched) > limit {
+		matched = matched[:limit]
+	}
+
+	out := make([]map[string]any, 0, len(matched))
+	for _, f := range matched {
 		out = append(out, publicMeta(f))
-		if limit > 0 && len(out) >= limit {
-			break
-		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"files": out, "count": len(out), "total": len(all), "categories": categories})
 }

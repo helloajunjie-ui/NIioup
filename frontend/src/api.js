@@ -100,15 +100,19 @@ export const api = {
   info: () => req('/api/info'),
   upload,
   restore,
-  publicFiles: (limit = 200, q = '', category = '') => {
+  publicFiles: (limit = 50, q = '', category = '', random = false) => {
     const p = new URLSearchParams()
     p.set('limit', limit)
     if (q) p.set('q', q)
     if (category && category !== '所有') p.set('category', category)
+    if (random) p.set('random', '1')
     return req('/api/files?' + p.toString())
   },
   selfDelete: (token) =>
     req('/api/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }),
+  fileInfo: (id) => req('/f/' + id + '/info'),
+  dlStart: (id) =>
+    req('/api/dl/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
   login: (password) =>
     req('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }),
   adminFiles: (q, offset, limit) =>

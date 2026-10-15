@@ -45,6 +45,7 @@ func registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/upload", handleUpload)
 	mux.HandleFunc("GET /api/files", handlePublicList)
 	mux.HandleFunc("POST /api/delete", handleSelfDelete)
+	mux.HandleFunc("POST /api/dl/start", handleGateStart)
 
 	mux.HandleFunc("GET /f/{id}", handleDownload)
 	mux.HandleFunc("GET /f/{id}/{filename...}", handleDownload)

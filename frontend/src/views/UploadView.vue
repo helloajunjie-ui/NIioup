@@ -42,7 +42,9 @@ onMounted(async () => {
 
 async function loadFiles() {
   try {
-    const d = await api.publicFiles(200, search.value.trim(), activeTab.value)
+    // 默认视图（无搜索、无分类）随机展示 50 条，避免数据过多全量加载
+    const noFilter = !search.value.trim() && activeTab.value === '所有'
+    const d = await api.publicFiles(noFilter ? 50 : 200, search.value.trim(), activeTab.value, noFilter)
     files.value = d.files || []
     totalFiles.value = d.total || 0
     categories.value = ['所有', ...(d.categories || []).filter((c) => c !== '未分类' && c !== '')]
@@ -98,6 +100,11 @@ async function copy(text, key) {
   try { await copyText(text); copied.value = key; setTimeout(() => (copied.value = ''), 1500) } catch (_) {}
 }
 
+// 打开下载门槛窗口：顶部广告位（无广告则倒计时），结束后才签发下载令牌
+function openGate(id) {
+  window.open('/dl/' + id, '_blank', 'width=560,height=660,popup=yes')
+}
+
 // ---- 删除口令 ----
 async function removeFile() {
   delMsg.value = ''
@@ -111,16 +118,21 @@ async function removeFile() {
   } catch (e) { delMsg.value = e.message } finally { deleting.value = false }
 }
 
-// ---- 卡片图标配色 ----
-const palettes = [
-  ['#3b7cff', '#2f66d8'], ['#30a46c', '#21835a'], ['#e5484d', '#c2343a'],
-  ['#f76b15', '#d9570a'], ['#8e4ec6', '#7238a6'], ['#12a5b4', '#0b8290'],
-  ['#5c6ac4', '#3f4c9e'], ['#d6409f', '#b52a82'], ['#697586', '#4b5563'],
+// ---- 卡片类型图标（按扩展名归类，小图标封面） ----
+const typeMap = [
+  { kinds: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'], type: 'image', label: '图片', cls: 't-image', icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="12" r="2"/><path d="M21 15l-5-5L5 21"/>' },
+  { kinds: ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'ts'], type: 'video', label: '视频', cls: 't-video', icon: '<rect x="2" y="6" width="14" height="12" rx="2"/><polygon points="16 10 22 7 22 17 16 14"/>' },
+  { kinds: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'opus'], type: 'audio', label: '音频', cls: 't-audio', icon: '<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>' },
+  { kinds: ['txt', 'md', 'markdown', 'log', 'csv', 'json', 'xml', 'yml', 'yaml', 'ini', 'conf'], type: 'text', label: '文本', cls: 't-text', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>' },
+  { kinds: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt'], type: 'doc', label: '文档', cls: 't-doc', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M9 11h6"/>' },
+  { kinds: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'], type: 'archive', label: '压缩包', cls: 't-archive', icon: '<polyline points="21 8 21 23 3 23 3 8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/>' },
+  { kinds: ['js', 'ts', 'py', 'go', 'java', 'c', 'cpp', 'cs', 'rb', 'php', 'html', 'css', 'vue', 'sql', 'sh'], type: 'code', label: '代码', cls: 't-code', icon: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>' },
 ]
-function tileColor(ext) {
-  let h = 0
-  for (const ch of (ext || 'file')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return palettes[h % palettes.length]
+function typeInfo(ext) {
+  const e = (ext || '').toLowerCase()
+  const hit = typeMap.find((t) => t.kinds.includes(e))
+  if (hit) return hit
+  return { type: 'other', label: '文件', cls: 't-other', icon: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>' }
 }
 const shownFiles = computed(() => files.value)
 </script>
@@ -173,7 +185,7 @@ const shownFiles = computed(() => files.value)
           <div class="linkbox">
             <input class="input mono" readonly :value="fullUrl(r.url)" />
             <button class="btn" @click="copy(fullUrl(r.url), 'link' + i)">{{ copied === 'link' + i ? '已复制' : '复制' }}</button>
-            <a class="btn primary" :href="r.url + '?dl=1'" target="_blank" rel="noopener">下载</a>
+            <a class="btn primary" @click.prevent="openGate(r.id)">下载</a>
           </div>
           <div class="dim">删除口令：</div>
           <div class="tokenbox">{{ r.delete_token }}
@@ -196,9 +208,9 @@ const shownFiles = computed(() => files.value)
 
       <div class="grid" v-else>
         <div class="filecard" v-for="f in shownFiles" :key="f.id">
-          <a class="ftile" :href="f.url" target="_blank" rel="noopener"
-            :style="{ background: 'linear-gradient(135deg, ' + tileColor(f.ext)[0] + ', ' + tileColor(f.ext)[1] + ')' }">
-            <span>{{ (f.ext || 'file').toUpperCase().slice(0, 4) }}</span>
+          <a class="ftile" :class="typeInfo(f.ext).cls" :href="f.url" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" v-html="typeInfo(f.ext).icon"></svg>
+            <span class="fext">{{ f.ext ? f.ext.toUpperCase() : 'FILE' }}</span>
           </a>
           <div class="fname" :title="f.name">{{ f.name }}</div>
           <div class="fmeta">{{ (f.ext || 'file').toUpperCase() }} · {{ formatSize(f.size) }}
@@ -206,7 +218,7 @@ const shownFiles = computed(() => files.value)
           </div>
           <div class="fup">游客 <span class="mono">{{ f.guest_uid }}</span> · {{ timeAgo(f.uploaded_at) }}</div>
           <div class="fact">
-            <a class="btn primary" style="flex:1" :href="f.url + '?dl=1'" target="_blank" rel="noopener">下载</a>
+            <a class="btn primary" style="flex:1" @click.prevent="openGate(f.id)">下载</a>
             <button class="btn" @click="copy(fullUrl(f.url), 'g' + f.id)">{{ copied === 'g' + f.id ? '已复制' : '复制' }}</button>
           </div>
         </div>

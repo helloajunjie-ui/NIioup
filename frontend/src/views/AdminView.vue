@@ -69,6 +69,11 @@ async function saveConfig() {
     upload_enabled: !!cfg.value.upload_enabled,
     auto_delete_days: Number(cfg.value.auto_delete_days || 0),
     public_list: !!cfg.value.public_list,
+    upload_rate_per_min: Number(cfg.value.upload_rate_per_min || 0),
+    download_rate_per_min: Number(cfg.value.download_rate_per_min || 0),
+    ad_code: cfg.value.ad_code || '',
+    wait_sec_min: Number(cfg.value.wait_sec_min || 0),
+    wait_sec_max: Number(cfg.value.wait_sec_max || 0),
   }
   if (cfg.value.new_password) body.admin_password = cfg.value.new_password
   try {
@@ -204,6 +209,21 @@ onMounted(() => { if (authed.value) { loadFiles(); loadConfig() } })
         <div class="field"><label>允许的文件类型（逗号分隔，留空=全部允许）</label>
           <input class="input" v-model="cfg.allowed_extensions" placeholder="如 jpg, png, zip, pdf" />
           <div class="hint">示例：jpg, png, zip, pdf</div></div>
+        <div class="row">
+          <div class="field"><label>上传频率（次/分钟/IP，0=不限）</label>
+            <input class="input" type="number" v-model="cfg.upload_rate_per_min" /></div>
+          <div class="field"><label>下载频率（次/分钟/IP，0=不限）</label>
+            <input class="input" type="number" v-model="cfg.download_rate_per_min" /></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>下载等待最短秒数</label>
+            <input class="input" type="number" v-model="cfg.wait_sec_min" /></div>
+          <div class="field"><label>下载等待最长秒数</label>
+            <input class="input" type="number" v-model="cfg.wait_sec_max" /></div>
+        </div>
+        <div class="field"><label>下载门槛页广告位（HTML，留空=显示倒计时）</label>
+          <textarea class="input" rows="3" v-model="cfg.ad_code" placeholder="粘贴你自己的广告代码，如 广告联盟 iframe/图片 链接"></textarea>
+          <div class="hint">填写后，下载门槛页顶部会展示这段广告；留空则显示 5–20 秒随机倒计时。</div></div>
         <div class="field"><label>自动删除（超过 N 天删除，0=永久保留）</label>
           <input class="input" type="number" v-model="cfg.auto_delete_days" /></div>
         <div class="field check" style="margin-bottom:8px">
