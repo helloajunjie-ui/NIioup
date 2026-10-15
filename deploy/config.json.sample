@@ -1,0 +1,20 @@
+{
+  "site_title": "匿名文件仓库",
+  "port": 8080,
+  "storage_dir": "./data/files",
+  "frontend_dir": "./frontend/dist",
+  "max_file_size_mb": 100,
+  "allowed_extensions": [],
+  "max_files_total": 1000,
+  "upload_enabled": true,
+  "auto_delete_days": 0,
+  "public_list": true,
+  "upload_rate_per_min": 20,
+  "download_rate_per_min": 60,
+  "login_rate_per_min": 5,
+  "download_mode": "countdown",
+  "ad_code": "",
+  "wait_sec_min": 5,
+  "wait_sec_max": 20,
+  "admin_password": "admin123"
+}

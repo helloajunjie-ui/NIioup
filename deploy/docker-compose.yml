@@ -1,0 +1,33 @@
+# anonfile 一键部署
+# 用法：在 deploy/ 目录执行  docker compose up -d --build
+#
+# 数据与配置用命名卷持久化（首次启动自动从镜像初始化）：
+#   anonfile_data   文件 + meta.json
+#   anonfile_config config.json（后台改配置会持久化到这里）
+# 如需改端口，改下面 "8080:8080" 左边为主机端口即可。
+
+services:
+  anonfile:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: anonfile:latest
+    container_name: anonfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - anonfile_data:/app/data
+      - anonfile_config:/app/config.json
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/info"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  anonfile_data:
+  anonfile_config:

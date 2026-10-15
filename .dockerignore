@@ -1,0 +1,11 @@
+# 构建上下文排除项（根目录）
+.git
+**/node_modules
+**/dist
+**/*.log
+backend/data
+backend/config.json
+backend/anonfile.exe
+backend/debug_*.txt
+README.md
+run.ps1

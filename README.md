@@ -123,6 +123,36 @@ go build -o anonfile.exe .
 
 ---
 
+## 部署
+
+提供三种方式，见 `deploy/` 目录。
+
+### 1. Docker Compose（推荐）
+
+```bash
+cd deploy
+docker compose up -d --build
+```
+
+- 容器内 `8080` 端口，数据与配置用命名卷持久化（`anonfile_data` / `anonfile_config`）
+- 改端口：编辑 `docker-compose.yml` 里 `"8080:8080"` 左侧
+- 首次启动自动生成默认配置；后台改配置会持久化到配置卷
+
+### 2. systemd 服务（裸机 Linux）
+
+```bash
+sudo cp deploy/anonfile.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now anonfile
+```
+
+需要先在 `frontend/` 执行 `npm ci && npm run build`、在 `backend/` 执行 `go build -o anonfile .`，并按注释修改 `ExecStart` 路径与运行用户。
+
+### 3. 反向代理 + HTTPS（公网推荐）
+
+`deploy/nginx.conf.sample` 是 Nginx + certbot 的参考配置（透传 `X-Forwarded-For`、限制上传体积、强制 HTTPS）。
+
+---
+
 ## API 概览
 
 | 方法 | 路径 | 说明 |

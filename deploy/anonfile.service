@@ -1,0 +1,35 @@
+# anonfile systemd 服务（裸机 Linux 部署）
+# 用法：
+#   sudo cp deploy/anonfile.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now anonfile
+#
+# 说明：
+#   - 后端在 backend/ 目录运行（config.json 与 data/ 都在该目录下）
+#   - 前端需先构建：cd frontend && npm ci && npm run build
+#   - 二进制需先构建：cd backend && go build -o anonfile .
+#   - 修改 User/ExecStart 里的路径以匹配你的部署位置
+#   - 如需开机自启并持久运行，配合本服务即可；公网请前置 Nginx/Caddy 开启 TLS
+
+[Unit]
+Description=anonfile anonymous file repository
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=anonfile
+Group=anonfile
+WorkingDirectory=/opt/anonfile/backend
+ExecStart=/opt/anonfile/backend/anonfile
+Restart=on-failure
+RestartSec=3
+# 基础加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/anonfile/backend
+
+[Install]
+WantedBy=multi-user.target

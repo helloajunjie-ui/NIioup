@@ -1,0 +1,37 @@
+# anonfile Nginx 反向代理参考配置（公网 + HTTPS）
+# 用法：
+#   1) 把本文件放到 /etc/nginx/conf.d/anonfile.conf
+#   2) 将 example.com 换成你的域名
+#   3) certbot --nginx -d example.com 自动签发 TLS
+#   4) nginx -t && systemctl reload nginx
+#
+# 说明：
+#   - anonfile 默认监听 8080，本配置通过 80/443 对外
+#   - 已透传 X-Forwarded-For（后端如需按真实 IP 限流，可在 rate.go 中启用读取）
+#   - 限制上传体积（与后端 max_file_size_mb 一致或略大）
+
+server {
+    listen 80;
+    server_name example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name example.com;
+
+    # certbot 自动填充证书路径
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    client_max_body_size 110m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+}
